@@ -54,9 +54,7 @@ This structure means we can easily swap out the adapter without changing the int
 var r = router.New()
 var decoder = schema.NewDecoder()
 
-type HttpAdapter struct {
-	verifyKey []byte
-}
+type HttpAdapter struct{}
 
 func writeJsonResponse(ctx *fasthttp.RequestCtx, response interface{}, statusCode int, userId int) {
 	parsed, _ := json.Marshal(response)
@@ -150,14 +148,14 @@ func httpPdfAdapter(handle func(inputParser InputParser, claims LoginClaims) (re
 	}
 }
 
-func (h HttpAdapter) RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}](url string,
+func RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}](url string,
 	handler Handler[TRequest, TResponse],
 	requireAuth bool,
 ) {
 	r.POST(url, httpJsonAdapter(handler, requireAuth))
 }
 
-func (h HttpAdapter) RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}](url string,
+func RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}](url string,
 	handler Handler[TRequest, TResponse],
 	requireAuth bool,
 ) {
@@ -168,7 +166,7 @@ func RegisterPdfPostRoute(url string, controller ByteController) {
 	r.POST(url, httpPdfAdapter(controller))
 }
 
-func (h HttpAdapter) ListenAndServe(addr string, secretKey []byte, exposeMetrics bool) {
+func ListenAndServe(addr string, secretKey []byte, exposeMetrics bool) {
 	verifyKey = secretKey
 	prometheus.MustRegister(httpRequestsTotal)
 	if exposeMetrics {
