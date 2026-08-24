@@ -54,6 +54,10 @@ This structure means we can easily swap out the adapter without changing the int
 var r = router.New()
 var decoder = schema.NewDecoder()
 
+type HttpAdapter struct {
+	verifyKey []byte
+}
+
 func writeJsonResponse(ctx *fasthttp.RequestCtx, response interface{}, statusCode int, userId int) {
 	parsed, _ := json.Marshal(response)
 	log.Println(string(ctx.Request.Header.Method()), string(ctx.Request.RequestURI()), strconv.Itoa(statusCode), strconv.Itoa(userId))
@@ -146,14 +150,14 @@ func httpPdfAdapter(handle func(inputParser InputParser, claims LoginClaims) (re
 	}
 }
 
-func RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}](url string,
+func (h HttpAdapter) RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}](url string,
 	handler Handler[TRequest, TResponse],
 	requireAuth bool,
 ) {
 	r.POST(url, httpJsonAdapter(handler, requireAuth))
 }
 
-func RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}](url string,
+func (h HttpAdapter) RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}](url string,
 	handler Handler[TRequest, TResponse],
 	requireAuth bool,
 ) {
@@ -164,7 +168,7 @@ func RegisterPdfPostRoute(url string, controller ByteController) {
 	r.POST(url, httpPdfAdapter(controller))
 }
 
-func ListenAndServe(addr string, secretKey []byte, exposeMetrics bool) {
+func (h HttpAdapter) ListenAndServe(addr string, secretKey []byte, exposeMetrics bool) {
 	verifyKey = secretKey
 	prometheus.MustRegister(httpRequestsTotal)
 	if exposeMetrics {

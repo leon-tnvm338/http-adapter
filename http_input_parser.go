@@ -11,8 +11,7 @@ import (
 )
 
 type httpInputParser struct {
-	ctx       *fasthttp.RequestCtx
-	verifyKey []byte
+	ctx *fasthttp.RequestCtx
 }
 
 func (parser httpInputParser) Read(target interface{}) (err error) {

@@ -1,6 +1,6 @@
 module github.com/leon-tnvm338/http-adapter
 
-go 1.25.0
+go 1.27
 
 require github.com/fasthttp/router v1.5.4
 
