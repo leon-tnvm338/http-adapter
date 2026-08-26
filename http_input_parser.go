@@ -27,22 +27,22 @@ func (parser httpInputParser) GetParameter(name string) (param interface{}) {
 	return param
 }
 
-func (parser httpInputParser) getAuthToken() (token string, err error) {
-	slicedAuthHeader := strings.Split(string(parser.ctx.Request.Header.Peek("Authorization")), " ")
+func getAuthToken(tokenString string) (token string, err error) {
+	slicedAuthHeader := strings.Split(tokenString, " ")
 	if len(slicedAuthHeader) != 2 {
 		return "", errors.New("error: Invalid Auth header")
 	}
 	return slicedAuthHeader[1], nil
 }
 
-type JwtLoginClaims struct {
+type JwtLoginClaims[TClaims interface{}] struct {
 	jwt.RegisteredClaims
-	LoginClaims
+	LoginClaims TClaims
 }
 
-func (parser httpInputParser) GetClaims() (claims LoginClaims, err error) {
-	authToken, err := parser.getAuthToken()
-	jwtClaims := JwtLoginClaims{}
+func GetClaims[TClaims interface{}](tokenString string) (claims TClaims, err error) {
+	authToken, err := getAuthToken(tokenString)
+	jwtClaims := JwtLoginClaims[TClaims]{}
 	if err != nil {
 		return claims, err
 	}
@@ -52,6 +52,5 @@ func (parser httpInputParser) GetClaims() (claims LoginClaims, err error) {
 	if err != nil {
 		log.Println(err.Error())
 	}
-	log.Println(jwtClaims.LoginClaims.User_id)
 	return claims, err
 }
