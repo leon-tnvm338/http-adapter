@@ -125,7 +125,7 @@ func RegisterHttpHandlerGet(path string, handler http.Handler) {
 	r.GET(path, fasthttpadaptor.NewFastHTTPHandler(handler))
 }
 
-func ListenAndServe[TClaims interface{}](
+func ListenAndServe(
 	addr string,
 	secretKey []byte,
 	exposeMetrics bool,
