@@ -40,14 +40,14 @@ type JwtLoginClaims[TClaims interface{}] struct {
 	LoginClaims TClaims
 }
 
-func (httpAdapter HttpAdapter) GetClaims[TClaims interface{}](tokenString string) (claims TClaims, err error) {
+func (adapter httpAdapter) GetClaims[TClaims interface{}](tokenString string) (claims TClaims, err error) {
 	authToken, err := getAuthToken(tokenString)
 	jwtClaims := JwtLoginClaims[TClaims]{}
 	if err != nil {
 		return claims, err
 	}
 	_, err = jwt.ParseWithClaims(authToken, &jwtClaims, func(token *jwt.Token) (interface{}, error) {
-		return httpAdapter.SecretKey, nil
+		return adapter.secretKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		log.Println(err.Error())

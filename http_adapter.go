@@ -26,20 +26,17 @@ type InputParser interface {
 
 type ResponseHook func(response interface{}, url string, method string, statusCode int, claims interface{})
 
-var r = router.New()
-var decoder = schema.NewDecoder()
-
-func (httpAdapter HttpAdapter) writeJsonResponse[TClaims interface{}](ctx *fasthttp.RequestCtx, response interface{}, statusCode int, claims TClaims) {
+func (adapter httpAdapter) writeJsonResponse[TClaims interface{}](ctx *fasthttp.RequestCtx, response interface{}, statusCode int, claims TClaims) {
 	parsed, _ := json.Marshal(response)
 	ctx.Response.SetStatusCode(statusCode)
 	ctx.Response.Header.SetCanonical([]byte("Content-Type"), []byte("application/json"))
 	ctx.Response.BodyWriter().Write(parsed)
-	httpAdapter.OnResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
+	adapter.onResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
 }
 
-func (httpAdapter HttpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error)) (result http.HandlerFunc) {
+func (adapter httpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error)) (result http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, err := httpAdapter.GetClaims[TClaims](r.Header.Get("Authorization"))
+		claims, err := adapter.GetClaims[TClaims](r.Header.Get("Authorization"))
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -57,7 +54,7 @@ func (httpAdapter HttpAdapter) AuthMiddleWare[TClaims interface{}](h http.Handle
 	}
 }
 
-func (httpAdapter HttpAdapter) httpJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+func (adapter httpAdapter) httpJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
 ) fasthttp.RequestHandler {
@@ -67,30 +64,30 @@ func (httpAdapter HttpAdapter) httpJsonAdapter[TRequest interface{}, TResponse i
 
 		var claims TClaims
 		if requireAuth {
-			claims, err = httpAdapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
+			claims, err = adapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
 			if err != nil {
-				httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
 			}
 		}
 		var request TRequest
 		err = parser.Read(&request)
 		if err != nil {
-			httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "Wrong parameters."}, http.StatusBadRequest, claims)
+			adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Wrong parameters."}, http.StatusBadRequest, claims)
 			return
 		}
 
 		response, err := handler.Handle(request, claims)
 		if err != nil {
-			httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "A server error has occurred."}, http.StatusInternalServerError, claims)
+			adapter.writeJsonResponse(ctx, ErrorResponse{Error: "A server error has occurred."}, http.StatusInternalServerError, claims)
 			return
 		}
 
-		httpAdapter.writeJsonResponse(ctx, response, http.StatusOK, claims)
+		adapter.writeJsonResponse(ctx, response, http.StatusOK, claims)
 	}
 }
 
-func (httpAdapter HttpAdapter) httpGetJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+func (adapter httpAdapter) httpGetJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
 ) fasthttp.RequestHandler {
@@ -99,64 +96,80 @@ func (httpAdapter HttpAdapter) httpGetJsonAdapter[TRequest interface{}, TRespons
 		var claims TClaims
 
 		if requireAuth {
-			claims, err = httpAdapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
+			claims, err = adapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
 			if err != nil {
-				httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
 			}
 		}
 		var request TRequest
 		values, err := url.ParseQuery(ctx.Request.URI().QueryArgs().String())
-		err = decoder.Decode(&request, values)
+		err = adapter.decoder.Decode(&request, values)
 		if err != nil {
-			httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "Wrong parameters."}, http.StatusBadRequest, claims)
+			adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Wrong parameters."}, http.StatusBadRequest, claims)
 			return
 		}
 
 		response, err := handler.Handle(request, claims)
 		if err != nil {
-			httpAdapter.writeJsonResponse(ctx, ErrorResponse{Error: "A server error has occurred."}, http.StatusInternalServerError, claims)
+			adapter.writeJsonResponse(ctx, ErrorResponse{Error: "A server error has occurred."}, http.StatusInternalServerError, claims)
 			return
 		}
 
-		httpAdapter.writeJsonResponse(ctx, response, http.StatusOK, claims)
+		adapter.writeJsonResponse(ctx, response, http.StatusOK, claims)
 	}
 }
 
-func (httpAdapter HttpAdapter) RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
+func (adapter httpAdapter) RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
 ) {
-	r.POST(url, httpAdapter.httpJsonAdapter(handler, requireAuth))
+	adapter.router.POST(url, adapter.httpJsonAdapter(handler, requireAuth))
 }
 
-func (httpAdapter HttpAdapter) RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
+func (adapter httpAdapter) RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
 ) {
-	r.GET(url, httpAdapter.httpGetJsonAdapter(handler, requireAuth))
+	adapter.router.GET(url, adapter.httpGetJsonAdapter(handler, requireAuth))
 }
 
-func RegisterHttpHandlerGet(path string, handler http.Handler) {
-	r.GET(path, fasthttpadaptor.NewFastHTTPHandler(handler))
+func (adapter httpAdapter) RegisterHttpHandlerGet(path string, handler http.Handler) {
+	adapter.router.GET(path, fasthttpadaptor.NewFastHTTPHandler(handler))
 }
 
-type HttpAdapter struct {
-	Address    string
-	SecretKey  []byte
-	OnResponse ResponseHook
+type httpAdapter struct {
+	address    string
+	secretKey  []byte
+	onResponse ResponseHook
+	router     *router.Router
+	decoder    schema.Decoder
 }
 
-func (h HttpAdapter) ListenAndServe() {
+func NewHttpAdapter(
+	address string,
+	secretKey string,
+	onResponse ResponseHook,
+) (adapter httpAdapter) {
+	return httpAdapter{
+		address:    address,
+		secretKey:  []byte(secretKey),
+		onResponse: onResponse,
+		router:     router.New(),
+		decoder:    *schema.NewDecoder(),
+	}
+}
+
+func (adapter httpAdapter) ListenAndServe() {
 	fmt.Println("The following routes are being served:")
 	fmt.Println()
-	for method, routes := range r.List() {
+	for method, routes := range adapter.router.List() {
 		for _, route := range routes {
 			fmt.Println("   - " + method + " " + route)
 		}
 		fmt.Println()
 	}
-	fmt.Println("Listening for requests at " + h.Address)
+	fmt.Println("Listening for requests at " + adapter.address)
 
-	log.Fatal(fasthttp.ListenAndServe(h.Address, r.Handler))
+	log.Fatal(fasthttp.ListenAndServe(adapter.address, adapter.router.Handler))
 }
