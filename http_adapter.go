@@ -34,9 +34,9 @@ func (adapter httpAdapter) writeJsonResponse[TClaims interface{}](ctx *fasthttp.
 	adapter.onResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
 }
 
-func (adapter httpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error)) (result http.HandlerFunc) {
+func (adapter httpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error), verifyKey string) (result http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, err := adapter.GetClaims[TClaims](r.Header.Get("Authorization"))
+		claims, err := getClaims[TClaims](r.Header.Get("Authorization"), verifyKey)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -65,7 +65,7 @@ func (adapter httpAdapter) handleBodyRequest[TRequest interface{}, TResponse int
 
 		var claims TClaims
 		if requireAuth {
-			claims, err = adapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
+			claims, err = adapter.getClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
 			if err != nil {
 				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
@@ -107,7 +107,7 @@ func (adapter httpAdapter) handleGetRequest[TRequest interface{}, TResponse inte
 		var claims TClaims
 
 		if requireAuth {
-			claims, err = adapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
+			claims, err = adapter.getClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
 			if err != nil {
 				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
