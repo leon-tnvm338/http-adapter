@@ -10,7 +10,6 @@ import (
 	"github.com/fasthttp/router"
 	"github.com/gorilla/schema"
 	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
 type Handler[TRequest interface{}, TResponse interface{}, TClaims interface{}] struct {
@@ -54,9 +53,10 @@ func (adapter httpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFun
 	}
 }
 
-func (adapter httpAdapter) httpJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+func (adapter httpAdapter) handleBodyRequest[TRequest interface{}, TResponse interface{}, TClaims interface{}](
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
+	authorize func(claims TClaims) (bool, error),
 ) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
 		parser := httpInputParser{ctx: ctx}
@@ -66,6 +66,15 @@ func (adapter httpAdapter) httpJsonAdapter[TRequest interface{}, TResponse inter
 		if requireAuth {
 			claims, err = adapter.GetClaims[TClaims](string(ctx.Request.Header.Peek("Authorization")))
 			if err != nil {
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				return
+			}
+			authorized, err := authorize(claims)
+			if err != nil {
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				return
+			}
+			if !authorized {
 				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
 			}
@@ -87,9 +96,10 @@ func (adapter httpAdapter) httpJsonAdapter[TRequest interface{}, TResponse inter
 	}
 }
 
-func (adapter httpAdapter) httpGetJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+func (adapter httpAdapter) handleGetRequest[TRequest interface{}, TResponse interface{}, TClaims interface{}](
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
+	authorize func(claims TClaims) (bool, error),
 ) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
 		var err error
@@ -120,22 +130,33 @@ func (adapter httpAdapter) httpGetJsonAdapter[TRequest interface{}, TResponse in
 	}
 }
 
-func (adapter httpAdapter) RegisterJsonPostRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
-	handler Handler[TRequest, TResponse, TClaims],
-	requireAuth bool,
-) {
-	adapter.router.POST(url, adapter.httpJsonAdapter(handler, requireAuth))
+func authorizeNothing[TClaims interface{}](claims TClaims) (authorized bool, err error) {
+	return false, nil
 }
 
-func (adapter httpAdapter) RegisterJsonGetRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](url string,
+func (adapter httpAdapter) RegisterJsonRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+	method string,
+	url string,
 	handler Handler[TRequest, TResponse, TClaims],
-	requireAuth bool,
 ) {
-	adapter.router.GET(url, adapter.httpGetJsonAdapter(handler, requireAuth))
+	if method == "GET" || method == "DELETE" {
+		adapter.router.Handle(method, url, adapter.handleGetRequest(handler, false, authorizeNothing))
+	} else {
+		adapter.router.Handle(method, url, adapter.handleBodyRequest(handler, false, authorizeNothing))
+	}
 }
 
-func (adapter httpAdapter) RegisterHttpHandlerGet(path string, handler http.Handler) {
-	adapter.router.GET(path, fasthttpadaptor.NewFastHTTPHandler(handler))
+func (adapter httpAdapter) RegisterAuthorizedJsonRoute[TRequest interface{}, TResponse interface{}, TClaims interface{}](
+	method string,
+	url string,
+	handler Handler[TRequest, TResponse, TClaims],
+	authorize func(TClaims) (bool, error),
+) {
+	if method == "GET" || method == "DELETE" {
+		adapter.router.Handle(method, url, adapter.handleGetRequest(handler, false, authorize))
+	} else {
+		adapter.router.Handle(method, url, adapter.handleBodyRequest(handler, false, authorize))
+	}
 }
 
 type httpAdapter struct {
