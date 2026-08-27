@@ -47,7 +47,7 @@ func (httpAdapter HttpAdapter) GetClaims[TClaims interface{}](tokenString string
 		return claims, err
 	}
 	_, err = jwt.ParseWithClaims(authToken, &jwtClaims, func(token *jwt.Token) (interface{}, error) {
-		return httpAdapter.secretKey, nil
+		return httpAdapter.SecretKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		log.Println(err.Error())

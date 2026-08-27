@@ -34,7 +34,7 @@ func (httpAdapter HttpAdapter) writeJsonResponse[TClaims interface{}](ctx *fasth
 	ctx.Response.SetStatusCode(statusCode)
 	ctx.Response.Header.SetCanonical([]byte("Content-Type"), []byte("application/json"))
 	ctx.Response.BodyWriter().Write(parsed)
-	httpAdapter.onResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
+	httpAdapter.OnResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
 }
 
 func (httpAdapter HttpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error)) (result http.HandlerFunc) {
@@ -142,9 +142,9 @@ func RegisterHttpHandlerGet(path string, handler http.Handler) {
 }
 
 type HttpAdapter struct {
-	address    string
-	secretKey  []byte
-	onResponse ResponseHook
+	Address    string
+	SecretKey  []byte
+	OnResponse ResponseHook
 }
 
 func (h HttpAdapter) ListenAndServe() {
@@ -156,7 +156,7 @@ func (h HttpAdapter) ListenAndServe() {
 		}
 		fmt.Println()
 	}
-	fmt.Println("Listening for requests at " + h.address)
+	fmt.Println("Listening for requests at " + h.Address)
 
-	log.Fatal(fasthttp.ListenAndServe(h.address, r.Handler))
+	log.Fatal(fasthttp.ListenAndServe(h.Address, r.Handler))
 }
