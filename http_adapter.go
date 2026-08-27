@@ -41,6 +41,22 @@ func writeJsonResponse[TClaims interface{}](ctx *fasthttp.RequestCtx, response i
 	onResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
 }
 
+func AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) bool) (result http.HandlerFunc) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, err := GetClaims[TClaims](r.Header.Get("Authorization"))
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		authorized := authorize(claims)
+		if !authorized {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		h(w, r)
+	}
+}
+
 func httpJsonAdapter[TRequest interface{}, TResponse interface{}, TClaims interface{}](
 	handler Handler[TRequest, TResponse, TClaims],
 	requireAuth bool,
