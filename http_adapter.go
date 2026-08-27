@@ -10,6 +10,7 @@ import (
 	"github.com/fasthttp/router"
 	"github.com/gorilla/schema"
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpadaptor"
 )
 
 type Handler[TRequest interface{}, TResponse interface{}, TClaims interface{}] struct {
@@ -111,6 +112,15 @@ func (adapter httpAdapter) handleGetRequest[TRequest interface{}, TResponse inte
 				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
 				return
 			}
+			authorized, err := authorize(claims)
+			if err != nil {
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				return
+			}
+			if !authorized {
+				adapter.writeJsonResponse(ctx, ErrorResponse{Error: "Unauthorized."}, http.StatusUnauthorized, claims)
+				return
+			}
 		}
 		var request TRequest
 		values, err := url.ParseQuery(ctx.Request.URI().QueryArgs().String())
@@ -157,6 +167,10 @@ func (adapter httpAdapter) RegisterAuthorizedJsonRoute[TRequest interface{}, TRe
 	} else {
 		adapter.router.Handle(method, url, adapter.handleBodyRequest(handler, false, authorize))
 	}
+}
+
+func (adapter httpAdapter) RegisterHttpHandlerGet(path string, handler http.Handler) {
+	adapter.router.GET(path, fasthttpadaptor.NewFastHTTPHandler(handler))
 }
 
 type httpAdapter struct {
