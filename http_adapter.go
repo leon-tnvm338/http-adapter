@@ -34,7 +34,7 @@ func (adapter httpAdapter) writeJsonResponse[TClaims interface{}](ctx *fasthttp.
 	adapter.onResponse(response, string(ctx.Request.RequestURI()), string(ctx.Request.Header.Method()), statusCode, claims)
 }
 
-func (adapter httpAdapter) AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error), verifyKey string) (result http.HandlerFunc) {
+func AuthMiddleWare[TClaims interface{}](h http.HandlerFunc, authorize func(claims TClaims) (bool, error), verifyKey string) (result http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, err := getClaims[TClaims](r.Header.Get("Authorization"), verifyKey)
 		if err != nil {
